@@ -9,6 +9,8 @@ It is built for two workflows:
 
 The skill starts with a readiness checklist before doing any edit. It is designed to preserve identity and avoid fake, AI-looking results.
 
+By default, the skill assumes you want material, human-visible improvement. It rejects retouches that are technically changed but impossible to see.
+
 ## What To Install
 
 Copy the entire folder named:
@@ -87,3 +89,13 @@ Before editing, the skill checks:
 - whether the output folder can be written
 
 If something required is missing, the skill stops before editing.
+
+## What Changed In v1.1.0
+
+- Added a minimum viable edit threshold so invisible retouches are rejected.
+- Added before/after QA expectations for full frame and 100% crops.
+- Added a lightweight retouch operation log inspired by non-destructive photo workflows.
+- Strengthened local retouching rules around targeted masks/selections.
+- Strengthened light regen rules so low-detail or AI-looking outputs are proof candidates, not automatic finals.
+
+The skill borrows workflow ideas from tools like PhotoFlow, darktable, RawTherapee, and GEGL, but it does **not** require installing them.
