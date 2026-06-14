@@ -7,7 +7,7 @@ A retouching tool for actor headshots, body shots, and marketing assets that fix
 
 This tool takes a third path. A generative model proposes a retouched **target** (what good looks like). Deterministic code then transfers only the validated, local fixes back onto the original high-resolution file. The model never paints the final pixels. Texture, composition, lighting, and likeness stay the original's.
 
-![retouch direction map](actor-headshot-retouch/examples/retouch-map.png)
+![retouch direction map](examples/retouch-map.png)
 
 *Top: original. Bottom: the retouch directions the pipeline targets — lid discoloration, under-eye brownness, tear-trough shadows, crepey texture, and eye whites. Each is corrected as a subtle, masked, texture-preserving edit, never a regeneration.*
 
@@ -32,7 +32,7 @@ original ──▶ generate target ──▶ align to original ──▶ frequen
                          texture)       texture)
 ```
 
-Each stage is a small, testable module in [`retoucher/`](actor-headshot-retouch/retoucher).
+Each stage is a small, testable module in [`retoucher/`](retoucher).
 
 Every run also writes a before/after contact sheet (full frame plus 100% crops) and a JSON report, so you can judge the result without pixel-peeping.
 
@@ -53,19 +53,19 @@ Every run is graded automatically. A gate whose optional backend is missing is r
 Core pipeline (everything above runs on these four):
 
 ```bash
-python -m pip install ./actor-headshot-retouch
+python -m pip install .
 ```
 
 Optional stronger masks and gates (face-landmark regions, identity check, perceptual check, RAW input):
 
 ```bash
-python -m pip install "./actor-headshot-retouch[advanced]"
+python -m pip install ".[advanced]"
 ```
 
 For real runs against OpenAI, add the SDK and set a key:
 
 ```bash
-python -m pip install "./actor-headshot-retouch[openai]"
+python -m pip install ".[openai]"
 export OPENAI_API_KEY=sk-...
 ```
 
@@ -102,7 +102,7 @@ By default the OpenAI backend **auto-discovers the latest `gpt-image` model at r
 export OPENAI_IMAGE_MODEL=gpt-image-3   # or pass --model gpt-image-3
 ```
 
-It falls back to a known model only if the models API is unreachable. The generator is still the weakest part of the chain for this workflow (it tends to regenerate and recolor), but the pipeline never trusts its pixels globally, so the model matters less than in a regenerate-everything tool. To swap in FLUX.1 Kontext, Gemini, or a local model, implement the one-method `Generator` interface in [`retoucher/generate.py`](actor-headshot-retouch/retoucher/generate.py); nothing else changes.
+It falls back to a known model only if the models API is unreachable. The generator is still the weakest part of the chain for this workflow (it tends to regenerate and recolor), but the pipeline never trusts its pixels globally, so the model matters less than in a regenerate-everything tool. To swap in FLUX.1 Kontext, Gemini, or a local model, implement the one-method `Generator` interface in [`retoucher/generate.py`](retoucher/generate.py); nothing else changes.
 
 ## Limitations
 
@@ -117,23 +117,24 @@ It falls back to a known model only if the models API is unreachable. The genera
 This is both a runnable Python package and a Codex/agent skill.
 
 ```
-actor-headshot-retouch/
+actor-headshot-retouch-skill/   (clone this; the repo itself is the skill)
+├── SKILL.md            agent behaviour spec
 ├── retoucher/          the pipeline (align, diff, mask, blend, qa, cli)
 ├── scripts/            check_readiness.py preflight
-├── tests/              offline test suite (mock generator)
-├── examples/           reproducible before/after demo
-├── SKILL.md            agent behaviour spec
 ├── references/         retouch standards and prompts
-└── pyproject.toml
+├── tests/              offline test suite (mock generator)
+├── examples/           reproducible demo + retouch-map illustration
+├── pyproject.toml
+└── CHANGELOG.md
 ```
 
-To use it as a Codex skill, copy the `actor-headshot-retouch` folder into your skills directory and invoke it; the skill runs the same pipeline described here.
+To use it as a Codex skill, clone or copy this repository into your skills directory so `SKILL.md` sits at the skill's root, then invoke it; the skill runs the same pipeline described here.
 
 ## Develop
 
 ```bash
-python -m pip install -e "./actor-headshot-retouch[dev]"
-pytest actor-headshot-retouch/tests -q
+python -m pip install -e ".[dev]"
+pytest tests -q
 ```
 
 Tests run fully offline with a mock generator, so no API key or network is needed. They bootstrap the package onto the path, so `pytest` and `python examples/make_example.py` work straight from a clone even without installing. (Editable installs have a known import-resolution quirk on the Python 3.14 preview; use a regular `pip install` there. Supported and CI-tested on 3.10 to 3.12.)
