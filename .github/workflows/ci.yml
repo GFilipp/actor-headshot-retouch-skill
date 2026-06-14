@@ -18,8 +18,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install (core + dev)
-        run: pip install -e "./actor-headshot-retouch[dev]"
+        run: pip install -e ".[dev]"
       - name: Run tests (offline, mock generator)
-        run: pytest actor-headshot-retouch/tests -q
+        run: pytest tests -q
       - name: Generate the demo artifacts (smoke)
-        run: python actor-headshot-retouch/examples/make_example.py
+        run: python examples/make_example.py

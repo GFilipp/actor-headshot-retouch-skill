@@ -26,7 +26,7 @@ Before any edit, generation, export, or retouch attempt:
 Example:
 
 ```bash
-python3 path/to/actor-headshot-retouch/scripts/check_readiness.py \
+python3 path/to/scripts/check_readiness.py \
   --mode hybrid-map \
   --source /path/to/source.jpg \
   --output-dir /path/to/outputs \

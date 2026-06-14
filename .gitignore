@@ -8,4 +8,4 @@ dist/
 .pytest_cache/
 retouch-out/
 # generated demo artifacts (run make_example.py to recreate locally)
-actor-headshot-retouch/examples/synthetic*
+examples/synthetic*
