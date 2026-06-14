@@ -2,10 +2,11 @@
 
 This is a Codex skill for actor, model, casting, agency, and commercial headshot retouching.
 
-It is built for two workflows:
+It is built for three workflows:
 
-- **Light retouching:** for photos that are already strong and only need subtle polish.
-- **Light regen:** for photos that need visible rescue work around tired eyes, under-eyes, discoloration, eye whites, neck, hands, or skin fatigue.
+- **Light retouching:** for photos that are already strong and only need minor local polish.
+- **Hybrid map:** the default path. Use image generation to create a retouch map/proof, then transfer accepted fixes back onto the original full-resolution structure.
+- **Light regen:** for photos that need max-quality imagegen rescue work around tired eyes, under-eyes, discoloration, eye whites, neck, hands, or skin fatigue.
 
 The skill starts with a readiness checklist before doing any edit. It is designed to preserve identity and avoid fake, AI-looking results.
 
@@ -59,7 +60,7 @@ Use $actor-headshot-retouch on this headshot.
 
 ## Optional Photo Tools
 
-For local, non-regenerative retouching, install:
+For local and hybrid-map retouching, install:
 
 - Python 3.12
 - ImageMagick
@@ -84,11 +85,19 @@ Before editing, the skill checks:
 - ImageMagick
 - libvips
 - ExifTool
-- whether image generation is available for light regen
+- whether image generation is available for hybrid-map and light regen
 - whether the source image can be read
 - whether the output folder can be written
 
 If something required is missing, the skill stops before editing.
+
+## What Changed In v1.2.0
+
+- Added `hybrid-map` as the explicit default workflow.
+- Added readiness support for `--mode hybrid-map`.
+- Made image generation a retouch-map/proof step before transferring accepted fixes back to the original full-resolution structure.
+- Added clearer escalation rules for max-quality light regen when local or hybrid fixes cannot visibly solve hard eye, skin, thumb, or neck issues.
+- Added specific guardrails against cheek bleaching, broad blur, face-shape drift, annotation marks, old reference artifacts, and invisible edits.
 
 ## What Changed In v1.1.0
 

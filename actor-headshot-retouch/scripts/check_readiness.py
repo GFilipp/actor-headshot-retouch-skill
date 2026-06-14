@@ -109,11 +109,11 @@ def check_cli_tool(label: str, command: str, required: bool) -> Check:
 
 def check_image_gen(value: str, required: bool) -> Check:
     if value == "yes":
-        return Check("image_gen available for light regen", "pass", required, "confirmed by Codex tool context")
+        return Check("image_gen available for retouch map / light regen", "pass", required, "confirmed by Codex tool context")
     if value == "no":
-        return Check("image_gen available for light regen", "fail", required, "not available in current tool context")
+        return Check("image_gen available for retouch map / light regen", "fail", required, "not available in current tool context")
     return Check(
-        "image_gen available for light regen",
+        "image_gen available for retouch map / light regen",
         "unknown",
         required,
         "must be confirmed by Codex; this is not a local CLI capability",
@@ -138,12 +138,14 @@ def check_output_dir(path_text: str | None, required: bool) -> Check:
 def required_names_for_mode(mode: str) -> set[str]:
     base = {"Source image readable", "Output folder writable"}
     local = {"Python imaging stack", "ImageMagick", "libvips", "ExifTool"}
-    regen = {"image_gen available for light regen"}
+    regen = {"image_gen available for retouch map / light regen"}
 
     if mode in {"local", "light-retouch"}:
         return base | local
     if mode == "light-regen":
         return base | regen
+    if mode == "hybrid-map":
+        return base | local | regen
     return base | local | regen
 
 
@@ -154,7 +156,7 @@ def build_checks(args: argparse.Namespace) -> list[Check]:
     checks.append(check_python_stack("Python imaging stack" in required))
     for label, command in CLI_TOOLS:
         checks.append(check_cli_tool(label, command, label in required))
-    checks.append(check_image_gen(args.image_gen_available, "image_gen available for light regen" in required))
+    checks.append(check_image_gen(args.image_gen_available, "image_gen available for retouch map / light regen" in required))
     checks.append(check_source(args.source, "Source image readable" in required))
     checks.append(check_output_dir(args.output_dir, "Output folder writable" in required))
     return checks
@@ -174,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check readiness for actor headshot retouching.")
     parser.add_argument(
         "--mode",
-        choices=["all", "local", "light-retouch", "light-regen"],
+        choices=["all", "local", "light-retouch", "hybrid-map", "light-regen"],
         default="all",
         help="Capability set to require.",
     )
@@ -184,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
         "--image-gen-available",
         choices=["yes", "no", "unknown"],
         default="unknown",
-        help="Whether Codex's image_gen tool is available for light regen.",
+        help="Whether Codex's image_gen tool is available for retouch maps or light regen.",
     )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     args = parser.parse_args(argv)
