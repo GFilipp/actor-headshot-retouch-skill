@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "actor-headshot-retoucher"
-version = "2.1.4"
-description = "Deterministic, identity-preserving headshot retouch pipeline (generate target, transfer back to original)."
+version = "3.0.0"
+description = "Dynamic, holistic, hybrid actor-retouch system: analyze, calibrate, surgically composite, and self-audit per photo (identity-preserving, casting-grade)."
 # Pinned to 3.12: MediaPipe (required for feature protection) ships wheels here;
 # 3.14 has no MediaPipe wheels yet.
 requires-python = ">=3.12,<3.13"
