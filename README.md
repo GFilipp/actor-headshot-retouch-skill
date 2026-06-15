@@ -5,13 +5,40 @@ A retouching tool for actor headshots, body shots, and marketing assets that fix
 - Full AI regeneration looks fake and shifts identity. Casting directors punish that.
 - Minimal automated touch-ups miss the real defects or smear them.
 
-This tool takes a third path. A generative model proposes a retouched **target** (what good looks like). Deterministic code then transfers only the validated, local fixes back onto the original high-resolution file. The model never paints the final pixels. Texture, composition, lighting, and likeness stay the original's.
+The v3 engine takes a third path, calibrated per photo. A best-in-class film-retoucher persona analyzes the whole picture, builds a holistic retouch map (face and hands, neck, chest, hair), decides per region how much to regenerate versus fix deterministically, and self-audits at native resolution before it will deliver. The generative model carries the real fix where only it can (crepe, pigment, stray hair); deterministic code finishes the rest and the surgical compositor keeps the original's texture and likeness.
+
+The system of record is [`METHODOLOGY.md`](METHODOLOGY.md). The pre-delivery checklist is [`RULES.md`](RULES.md). The failure log that produced the rules is [`references/retouch_learnings.md`](references/retouch_learnings.md).
+
+## How v3 works
+
+Four typed contracts, each surviving into the JSON telemetry so every run is auditable:
+
+1. **Analyze** — whole-photo assessment (shot type, face size, resolution, lighting, subjects, per-region clean-skin refs) and a defect map. VLM proposes, local CV corroborates. Unhandleable photos are flagged, never crashed.
+2. **RetouchMap** — ordered ops across every in-scope region, identity-safe first.
+3. **Calibrate** — per op, a decided generative-vs-deterministic split, composite mode, mask, feather, and rationale. A pure policy of defect, severity, face size, resolution, identity sensitivity.
+4. **Verdict** — a native-resolution self-audit whose coverage equals the map. Ships only clean regions; escalates or refuses the rest.
+
+```bash
+# Offline, no API, no cost (mock generator + assessor):
+retoucher INPUT --engine v3 --dry-run --out-dir out
+
+# Real run (Gemini proposer; reads ~/Desktop/gemini.txt or $GEMINI_API_KEY):
+retoucher INPUT --engine v3 --samples 3 --out-dir out
+```
+
+v3 writes a per-image telemetry report and the output image only when delivered (audit-gated; it will not ship the least-bad). Run locally, not in the Codex sandbox (the sandbox denies the GPU and MediaPipe aborts).
+
+---
+
+## Legacy v2 pipeline (`--engine v2`)
+
+The original deterministic-transfer pipeline, kept as the default `--engine` for backward compatibility. A generative model proposes a retouched **target**; deterministic code transfers only the validated, local fixes back onto the original. The model never paints the final pixels.
 
 ![retouch direction map](examples/retouch-map.png)
 
 *Top: original. Bottom: the retouch directions the pipeline targets — lid discoloration, under-eye brownness, tear-trough shadows, crepey texture, and eye whites. Each is corrected as a subtle, masked, texture-preserving edit, never a regeneration.*
 
-## Why it stays real
+### Why it stays real
 
 The generated target is treated as **direction, not pixels**.
 
@@ -21,7 +48,7 @@ The generated target is treated as **direction, not pixels**.
 - Under-eye / tear-trough shadow is lifted by a dedicated corrector that runs regardless of what the model proposed, so it is actually addressed.
 - Any uniform colour cast the model adds is removed before transfer, so complexion never drifts.
 
-## How it works
+### How it works
 
 ```
 original ──▶ generate target ──▶ align to original ──▶ frequency-separated
@@ -37,7 +64,7 @@ Each stage is a small, testable module in [`retoucher/`](retoucher).
 
 Every run also writes a before/after contact sheet (full frame plus 100% crops) and a JSON report, so you can judge the result without pixel-peeping.
 
-## Quality gates
+### Quality gates
 
 Every run is graded automatically. A gate whose optional backend is missing is reported as `skipped`, never silently passed. The verdict is `reject` if any gate fails; the artifact is still written for inspection.
 

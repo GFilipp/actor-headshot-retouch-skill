@@ -35,6 +35,53 @@ class QAThresholds:
 
 
 @dataclass
+class CalibrationConfig:
+    """Policy thresholds for `calibrate.py` — the per-photo generative-vs-deterministic
+    split. Encodes the rulebook this project learned the hard way: small/low-res faces
+    can't tolerate a raw paste (texture distorts at pixel zoom), pigmentation is chromatic
+    so deterministic 'barely dents' it (generative-led), mild unevenness is deterministic-
+    only, stray hair is generative-only, and identity-sensitive ops cap the generative share.
+    """
+
+    large_face_frac: float = 0.05                          # >= this AND high-res -> raw paste tolerated
+    paste_resolution_classes: tuple[str, ...] = ("native_high",)
+    identity_gen_cap: float = 0.5                          # identity-sensitive ops cap generative share
+    mild_unevenness_sev: float = 0.5                       # below -> deterministic-only
+    feather_frac: float = 0.10                             # feather px = region-bbox diagonal * this
+    mask_grow: float = 1.1                                 # organic mask spread (no straight edges)
+    gen_weight_strong: float = 0.8                         # crepe / under-eye on a big face
+    gen_weight_pigment: float = 0.7                        # pigmentation / discoloration
+    gen_weight_small_face: float = 0.5                     # any generative op on a small/low-res face
+    det_strength_floor: float = 0.25                       # deterministic strength at severity 0
+    det_strength_ceiling: float = 0.7                      # deterministic strength at severity 1
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class AuditThresholds:
+    """Native-resolution, per-region self-audit gates (see audit.py). These catch the
+    exact artifacts this project shipped by mistake when verifying on interpolated zoom:
+    boxes/seams, blur/plastic, stipple, color cast (rouge), missed pigment, faded lashes."""
+
+    seam_max: float = 0.06               # 95th-pct gradient of the edit delta in the mask edge band
+    texture_lo: float = 0.45             # region/annulus HF ratio floor -> below = blur/plastic
+    texture_hi: float = 2.2              # region/annulus HF ratio ceiling -> above = stipple
+    color_max_delta_e: float = 8.0       # region-mean vs clean-skin-ref-mean LAB drift (rouge)
+    residual_form_thresh: float = 0.08   # detect_blemishes score floor to form tight candidate blobs
+    residual_severity: float = 0.9       # a formed pigment/dark candidate this strong = missed mark
+                                         # (severity = score-mean; clean skin peaks well below this)
+    lash_min_retention: float = 0.6      # protected-feature edge energy must retain >= this fraction
+    identity_min_cosine: float = 0.60    # ArcFace cosine (InsightFace) when available
+    identity_fallback_min_ssim: float = 0.55  # DEFINED fallback when InsightFace absent (never skip-as-pass)
+    min_region_px: int = 64              # below this a gate is skipped-and-reported (never a silent pass)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
 class PipelineConfig:
     mode: str = "hybrid-map"
     # Spatial params are expressed at this reference width and scaled to the
@@ -46,6 +93,8 @@ class PipelineConfig:
     # --- transfer strengths (per edit kind), each in [0, 1] ---
     tone_strength: float = 0.85              # colour/tone (chroma-only) transfer
     under_eye_strength: float = 0.6          # deterministic tear-trough lightening
+    under_eye_texture_strength: float = 0.6  # soften crepey tear-trough texture (HF attenuation)
+    skin_even_strength: float = 0.5          # even skin colour blotches (a*/b* only; L/form/texture kept)
 
     # --- form-preserving tone transfer ---
     neutralize_global_cast: bool = True

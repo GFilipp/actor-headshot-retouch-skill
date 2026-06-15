@@ -1,0 +1,14 @@
+{
+  "photo3_hand_blur_and_missed_mark": {
+    "clean": false,
+    "must_fail": ["texture", "residual"]
+  },
+  "photo2_glasses_hard_shadow": {
+    "clean": false,
+    "must_fail": ["seam"]
+  },
+  "clean_feathered_edit": {
+    "clean": true,
+    "must_fail": []
+  }
+}

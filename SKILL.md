@@ -15,6 +15,27 @@ Preserve identity, expression, face/body structure, pose, hair character, stubbl
 
 The standard is: rested, healthy, polished, high-end, natural, and unmistakably real.
 
+## v3 Engine (default approach)
+
+The system of record is [`METHODOLOGY.md`](METHODOLOGY.md); the pre-delivery checklist is [`RULES.md`](RULES.md); the failure log is [`references/retouch_learnings.md`](references/retouch_learnings.md). Read them before changing behavior.
+
+The v3 engine is dynamic, holistic, and calibrated per photo. It runs four typed contracts that survive into a JSON telemetry report:
+
+1. **Analyze** — assess the whole picture (shot type, face size, resolution, lighting, subjects across face and hands, neck, chest, hair) and build a defect map. VLM proposes, local CV corroborates. Unhandleable photos (multi-person, profile, heavy occlusion) are flagged, never crashed.
+2. **RetouchMap** — ordered ops across every in-scope region, identity-safe first.
+3. **Calibrate** — per op, decide the generative-vs-deterministic split, composite mode, mask, feather, and rationale. Small or low-resolution faces never get a raw paste; pigment is generative-led; mild unevenness is deterministic only; hair is generative only.
+4. **Verdict** — a self-audit at nearest-neighbor native resolution whose coverage equals the map. Deliver only clean regions; escalate or refuse the rest. Identity is required, not skipped.
+
+```bash
+# Offline (no API, no cost):
+python -m retoucher INPUT --engine v3 --dry-run --out-dir out
+
+# Real run (Gemini proposer; key at ~/Desktop/gemini.txt or $GEMINI_API_KEY):
+python -m retoucher INPUT --engine v3 --samples 3 --out-dir out
+```
+
+Non-negotiable: audit at native resolution (never an interpolated preview), audit coverage equals map coverage, delivery is audit-gated (refuse rather than ship least-bad), and run locally (the Codex sandbox denies the GPU and MediaPipe aborts). The Mode Decision and Deterministic Transfer sections below are the legacy v2 pipeline (`--engine v2`), kept for backward compatibility.
+
 ## Mandatory Readiness Gate
 
 Before any edit, generation, export, or retouch attempt:
@@ -37,9 +58,9 @@ Use `python` instead of `python3` on systems where that is the active interprete
 
 The skill must not assume macOS, Windows, Linux, Homebrew, Chocolatey, winget, apt, or any specific package manager. Check capabilities, not installation method.
 
-## Mode Decision
+## Mode Decision (legacy v2)
 
-Choose one mode after readiness passes. Default to **Hybrid map** unless the source clearly fits a lighter or heavier path.
+These modes drive the legacy v2 pipeline (`--engine v2`). For new work prefer the v3 engine above, which selects the treatment per region automatically. Choose one mode after readiness passes. Default to **Hybrid map** unless the source clearly fits a lighter or heavier path.
 
 - **Light retouching (`light-retouch`):** Use only for near-perfect photos needing minor local polish, full-resolution preservation, metadata-aware export, and conservative fixes. Choose this when imagegen would be overkill and the defects are small enough to fix visibly with masks/heal/clone/color work.
 - **Hybrid map (`hybrid-map`):** The normal default. Image generation creates a retouch target; the deterministic pipeline (`retoucher`) then aligns it to the original, builds a frequency-separated touch-up map, masks it to the intended regions, and transfers only the local fixes back onto the original full-resolution file. The model proposes direction; code does the transfer. Do not hand-apply the map freehand. Run the pipeline (see Deterministic Transfer below) rather than editing pixels by instruction.

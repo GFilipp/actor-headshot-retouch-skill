@@ -3,6 +3,62 @@
 Versions follow the GitHub releases. The package version (`pyproject.toml`) is
 the single source of truth.
 
+## v3.0.0
+
+The north-star rebuild: a dynamic, holistic, hybrid, model-agnostic retouch system that
+analyzes the whole photo, builds a per-region retouch map, calibrates generative-vs-
+deterministic per region, surgically composites, and self-audits at native resolution
+before it will deliver. The method this project actually used (Gemini regenerate ->
+surgical paste -> deterministic polish) is now a tested system, not uncommitted scripts
+driven by eye and shell history. `--engine v2` keeps the legacy deterministic pipeline.
+
+Four typed contracts, each surviving into the JSON telemetry (auditable, replayable):
+
+- **Analyze** (`analyze.py`, `vision.py`, `schema.py`): hybrid CV + VLM whole-photo
+  assessment (`PhotoAssessment`) and defect map (`RetouchMap`) across face/eye-area,
+  hands, neck, chest, hair. VLM proposes, CV corroborates and guards face-count.
+  Unhandleable photos (multi-person, profile, no-face) are flagged, never crashed.
+- **Calibrate** (`calibrate.py`): a pure policy function -> `CalibrationRecord` per op
+  with a written rationale. Encodes the rulebook (small/low-res face never raw-pastes;
+  pigment is generative-led; mild unevenness is deterministic-only; hair is generative-
+  only; identity-sensitive caps the generative share). `escalate()` does audit-driven
+  re-calibration. Thresholds in `config.CalibrationConfig`.
+- **Self-audit** (`audit.py`): native-resolution detectors (seam/box, blur/plastic,
+  stipple, color cast, residual mark, faded lashes) with a per-region annulus texture
+  baseline. Coverage equals the map; identity is REQUIRED (ArcFace or a defined SSIM
+  fallback, never skipped-as-clean). The nearest-neighbor invariant is enforced by a
+  runtime guard and a source-scan test. Thresholds in `config.AuditThresholds`.
+- **Orchestrator** (`orchestrator.py`): the spine (ingest -> analyze -> map -> calibrate
+  -> execute -> audit -> deliver) with audit-driven sampling and audit-gated delivery
+  (refuse rather than ship least-bad).
+
+Also: `regions.py` (surgical compositor: register + organic masks + paste/transfer/luma +
+color-match), `cleanup.py`, `detect.py`, `crop.py`, `GeminiGenerator` + `edit_n` behind
+the `Generator` protocol with `router.py`, a single-source subject-agnostic persona
+(`prompts.build_edit_prompt`), `--engine v3` / `--samples` / `--max-escalate` in the CLI,
+and the docs of record (`METHODOLOGY.md`, `RULES.md`, `references/retouch_learnings.md`).
+The photo-3 hand (blur + missed mark) and photo-2 glasses shadow are committed as a
+synthetic golden regression set the audit must flag.
+
+## v2.1.4
+
+Stabilizes the proven delivery ops + the Gemini surgical-paste toolkit out of the
+uncommitted working tree (the method actually used to retouch the 20260509 shoot),
+ahead of the v3 north-star rebuild that promotes them into a tested system.
+
+- `blend.py`: `smooth_under_eye_texture` (high-frequency attenuation), `even_skin_tone`
+  (a*/b* evening, L kept so form/texture survive), `whiten_eye_whites` (sclera de-red/
+  yellow + brighten), `reduce_discoloration` (pull red/brown toward a clean skin
+  reference, reduce excess only).
+- `faceparse.py`: `landmarks()` returns the raw 478-pt mesh, for registering a donor/
+  edit back onto the original (surgical paste outside the deterministic pipeline).
+- `config.py` / `cli.py`: `under_eye_texture_strength`, `skin_even_strength` +
+  `--under-eye-texture` / `--skin-even`.
+- `scripts/`: the Gemini surgical-paste toolkit — `gemini_retouch.py`, `surgical_paste.py`
+  (paste/transfer/luma modes, organic rounded masks, colour-match, ECC for non-face
+  regions), `polish_eyes.py`, `face_crop.py`, `detect_blemishes.py`. Ad-hoc one-offs;
+  promoted into the package + tested in v3.0.0.
+
 ## v2.1.3
 
 Fixes a crash and a hang seen running the skill inside a sandbox (Codex):
