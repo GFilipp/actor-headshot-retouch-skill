@@ -60,6 +60,28 @@ class CalibrationConfig:
 
 
 @dataclass
+class AuditThresholds:
+    """Native-resolution, per-region self-audit gates (see audit.py). These catch the
+    exact artifacts this project shipped by mistake when verifying on interpolated zoom:
+    boxes/seams, blur/plastic, stipple, color cast (rouge), missed pigment, faded lashes."""
+
+    seam_max: float = 0.06               # 95th-pct gradient of the edit delta in the mask edge band
+    texture_lo: float = 0.45             # region/annulus HF ratio floor -> below = blur/plastic
+    texture_hi: float = 2.2              # region/annulus HF ratio ceiling -> above = stipple
+    color_max_delta_e: float = 8.0       # region-mean vs clean-skin-ref-mean LAB drift (rouge)
+    residual_form_thresh: float = 0.08   # detect_blemishes score floor to form tight candidate blobs
+    residual_severity: float = 0.9       # a formed pigment/dark candidate this strong = missed mark
+                                         # (severity = score-mean; clean skin peaks well below this)
+    lash_min_retention: float = 0.6      # protected-feature edge energy must retain >= this fraction
+    identity_min_cosine: float = 0.60    # ArcFace cosine (InsightFace) when available
+    identity_fallback_min_ssim: float = 0.55  # DEFINED fallback when InsightFace absent (never skip-as-pass)
+    min_region_px: int = 64              # below this a gate is skipped-and-reported (never a silent pass)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
 class PipelineConfig:
     mode: str = "hybrid-map"
     # Spatial params are expressed at this reference width and scaled to the

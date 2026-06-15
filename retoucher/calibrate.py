@@ -17,9 +17,10 @@ This is the rulebook this project learned the hard way (see references/retouch_l
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 from .config import CalibrationConfig
-from .schema import CalibrationRecord, PhotoAssessment, RetouchMap, RetouchOp
+from .schema import CalibrationRecord, PhotoAssessment, RegionVerdict, RetouchMap, RetouchOp
 
 # Deterministic follow-up op names — MUST match callables in blend.py.
 DET_DISCOLOR = "reduce_discoloration"
@@ -129,3 +130,70 @@ def calibrate(
     big_face = (assessment.face_px_frac >= cfg.large_face_frac
                 and assessment.resolution_class in cfg.paste_resolution_classes)
     return [_calibrate_op(op, assessment, big_face, cfg) for op in retouch_map.ops]
+
+
+def escalate(
+    record: CalibrationRecord, verdict: RegionVerdict, cfg: CalibrationConfig | None = None
+) -> CalibrationRecord:
+    """Pure re-calibration after a failed audit: map each failing gate to a bounded,
+    targeted change (the orchestrator re-executes and re-audits, capped). Returns a NEW
+    record; the input is untouched. The fixes are the ones this project learned:
+      seam     -> wider feather + more organic spread
+      blur     -> stop pasting low-res donor; keep original texture (transfer), less gen
+      stipple  -> lighter luma + even-skin to calm injected noise
+      color    -> stronger de-discolor toward the clean reference, cap generative share
+      residual -> max de-discolor + targeted heal; the mark must come out
+      lashes   -> pull the mask off the features (less grow, tighter feather)
+    """
+    cfg = cfg or CalibrationConfig()
+    fails = {g["name"]: g for g in verdict.gates if g["status"] == "fail"}
+    if not fails:
+        return record
+    mode, gen = record.composite_mode, record.gen_weight
+    det = list(record.det_ops)
+    strength = dict(record.strength)
+    grow, feather = record.grow, record.feather_px
+    notes = []
+
+    if "seam" in fails:
+        feather = round(feather * 1.6 + 2.0, 1)
+        grow = round(grow + 0.15, 2)
+        notes.append("seam: wider feather + organic spread")
+    if "texture" in fails:
+        if "blur" in fails["texture"]["detail"]:
+            mode = "transfer"                       # keep the original skin texture
+            gen = round(gen * 0.6, 2)
+            notes.append("blur: switch to tone-only transfer, lower generative share")
+        else:                                       # stipple
+            mode = "luma" if mode == "paste" else mode
+            gen = round(gen * 0.7, 2)
+            if DET_EVEN not in det:
+                det.append(DET_EVEN)
+            strength[DET_EVEN] = cfg.det_strength_ceiling
+            notes.append("stipple: luma + even-skin to calm injected texture")
+    if "color" in fails:
+        if DET_DISCOLOR not in det:
+            det.append(DET_DISCOLOR)
+        strength[DET_DISCOLOR] = cfg.det_strength_ceiling
+        gen = min(gen, 0.6)
+        notes.append("color: stronger de-discolor toward clean reference, cap generative")
+    if "residual" in fails:
+        if DET_DISCOLOR not in det:
+            det.append(DET_DISCOLOR)
+        strength[DET_DISCOLOR] = cfg.det_strength_ceiling
+        if DET_HEAL not in det:
+            det.append(DET_HEAL)
+            strength[DET_HEAL] = cfg.det_strength_ceiling
+        notes.append("residual: max de-discolor + targeted heal until the mark clears")
+    if "lashes" in fails:
+        grow = round(max(0.7, grow - 0.2), 2)
+        feather = round(max(1.0, feather * 0.8), 1)
+        notes.append("lashes: pull mask off features, tighter feather")
+
+    if gen > 0:
+        strength["composite"] = round(gen, 2)
+    elif "composite" in strength:
+        del strength["composite"]
+    rationale = record.rationale + " | escalated[" + "; ".join(notes) + "]"
+    return replace(record, composite_mode=mode, gen_weight=round(gen, 2), det_ops=det,
+                   strength=strength, grow=grow, feather_px=feather, rationale=rationale)

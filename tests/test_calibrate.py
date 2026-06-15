@@ -5,9 +5,9 @@ from __future__ import annotations
 import copy
 
 from retoucher.calibrate import (
-    DET_DISCOLOR, DET_EVEN, DET_HEAL, DET_SMOOTH, DET_WHITEN, calibrate,
+    DET_DISCOLOR, DET_EVEN, DET_HEAL, DET_SMOOTH, DET_WHITEN, calibrate, escalate,
 )
-from retoucher.schema import PhotoAssessment, RetouchMap, RetouchOp
+from retoucher.schema import PhotoAssessment, RegionVerdict, RetouchMap, RetouchOp
 
 BIG = PhotoAssessment(shot_type="headshot", face_px_frac=0.12, resolution_class="native_high",
                       face_count=1, handleable=True)
@@ -105,3 +105,43 @@ def test_pure_no_mutation_and_deterministic():
     r2 = [r.to_dict() for r in calibrate(BIG, m)]
     assert r1 == r2                                       # deterministic
     assert [o.__dict__ for o in m.ops] == [o.__dict__ for o in before.ops]  # no mutation
+
+
+# ---- escalate (audit-driven re-calibration) ----------------------------------------
+
+def _verdict(*fails):
+    gates = [{"name": n, "status": "fail", "value": 1.0, "threshold": 0.0,
+              "detail": d, "required": True} for n, d in fails]
+    return RegionVerdict(op_id="op", clean=False, gates=gates)
+
+
+def test_escalate_noop_when_clean():
+    rec = _one(_op("under_eye", region="eye_area"))
+    clean = RegionVerdict(op_id="op", clean=True, gates=[
+        {"name": "seam", "status": "pass", "value": 0.0, "threshold": 0.0, "detail": "", "required": True}])
+    assert escalate(rec, clean) == rec
+
+
+def test_escalate_seam_widens_feather_and_grow():
+    rec = _one(_op("under_eye", region="eye_area"))
+    esc = escalate(rec, _verdict(("seam", "hard edge / box")))
+    assert esc.feather_px > rec.feather_px and esc.grow > rec.grow
+
+
+def test_escalate_blur_switches_to_transfer_and_lowers_gen():
+    rec = _one(_op("under_eye", region="eye_area"))           # paste, high gen
+    esc = escalate(rec, _verdict(("texture", "blur / plastic: texture below local skin")))
+    assert esc.composite_mode == "transfer" and esc.gen_weight < rec.gen_weight
+
+
+def test_escalate_residual_forces_max_discolor_and_heal():
+    rec = _one(_op("under_eye", region="eye_area"))
+    esc = escalate(rec, _verdict(("residual", "pigment/dark mark still present")))
+    assert DET_DISCOLOR in esc.det_ops and DET_HEAL in esc.det_ops
+    assert esc.strength[DET_DISCOLOR] >= rec.strength.get(DET_DISCOLOR, 0)
+
+
+def test_escalate_color_caps_generative_share():
+    rec = _one(_op("under_eye", region="eye_area"))           # gen ~0.8
+    esc = escalate(rec, _verdict(("color", "color cast / rouge")))
+    assert esc.gen_weight <= 0.6 and DET_DISCOLOR in esc.det_ops
