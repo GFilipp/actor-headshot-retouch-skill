@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
-from skimage.color import deltaE_ciede2000, rgb2lab
+from skimage.color import rgb2lab
 from skimage.metrics import structural_similarity
 
 from .config import AuditThresholds
@@ -88,16 +88,23 @@ def _baseline_ring(mask: np.ndarray, *, skin: np.ndarray | None, band_px: float)
 # ---- detectors (native resolution) ------------------------------------------------
 
 def _seam_gate(original, retouched, mask, band_px, cfg) -> dict:
+    # A seam is a gradient RIDGE concentrated at the mask boundary, relative to the edit's
+    # own interior. A ratio is robust to real skin texture (both band and interior carry it);
+    # an absolute gradient threshold over-flagged real photos.
     delta = np.abs(_gray(retouched) - _gray(original))     # isolates the edit footprint
     band = _hard(_dilate(mask, band_px) * (1.0 - _erode(mask, band_px)))
-    if int(band.sum()) < cfg.min_region_px:
-        return _gate("seam", "skipped", None, cfg.seam_max, "edge band too small")
+    interior = _hard(_erode(mask, band_px))
+    if int(band.sum()) < cfg.min_region_px or int(interior.sum()) < cfg.min_region_px:
+        return _gate("seam", "skipped", None, cfg.seam_ratio_max, "region too small to test the edge")
     gx = cv2.Sobel(delta, cv2.CV_32F, 1, 0, ksize=3)
     gy = cv2.Sobel(delta, cv2.CV_32F, 0, 1, ksize=3)
     gmag = np.sqrt(gx * gx + gy * gy)
-    val = float(np.percentile(gmag[band], 95))
-    ok = val <= cfg.seam_max
-    return _gate("seam", "pass" if ok else "fail", val, cfg.seam_max,
+    band_val = float(np.percentile(gmag[band], 90))
+    if band_val < cfg.seam_max:                            # negligible boundary gradient -> no seam
+        return _gate("seam", "pass", band_val, cfg.seam_max, "no boundary gradient")
+    ratio = band_val / max(float(np.percentile(gmag[interior], 90)), 1e-6)
+    ok = ratio <= cfg.seam_ratio_max
+    return _gate("seam", "pass" if ok else "fail", ratio, cfg.seam_ratio_max,
                  "organic blend" if ok else "hard edge / box at the mask boundary")
 
 
@@ -116,18 +123,21 @@ def _texture_gate(retouched, mask, *, skin, band_px, cfg) -> dict:
     return _gate("texture", "pass", ratio, cfg.texture_lo, "texture matches local skin")
 
 
-def _color_gate(retouched, mask, skin_ref, cfg) -> dict:
-    if skin_ref is None:
-        return _gate("color", "skipped", None, cfg.color_max_delta_e,
-                     "no clean-skin reference", required=False)
-    reg = _mean_lab(retouched, _erode(mask, 2.0), cfg.min_region_px)
-    ref = _mean_lab(retouched, skin_ref, cfg.min_region_px)
-    if reg is None or ref is None:
-        return _gate("color", "skipped", None, cfg.color_max_delta_e, "too few pixels", required=False)
-    de = float(deltaE_ciede2000(reg.reshape(1, 1, 3), ref.reshape(1, 1, 3))[0, 0])
-    ok = de <= cfg.color_max_delta_e
-    return _gate("color", "pass" if ok else "fail", de, cfg.color_max_delta_e,
-                 "tone matches clean skin" if ok else "color cast / rouge vs clean skin")
+def _color_gate(original, retouched, mask, cfg) -> dict:
+    # Catch the EDIT introducing a cast (rouge), not natural regional color. Directional and
+    # per-region: compare the region's mean a*/b* before vs after. The edit must not ADD red
+    # (a*) or warmth (b*). De-discoloration (which REDUCES them) and naturally-different
+    # regions (a hand is not a cheek) never trip this.
+    core = _erode(mask, 2.0)
+    o = _mean_lab(original, core, cfg.min_region_px)
+    r = _mean_lab(retouched, core, cfg.min_region_px)
+    if o is None or r is None:
+        return _gate("color", "skipped", None, cfg.color_add_max, "too few pixels", required=False)
+    da, db = float(r[1] - o[1]), float(r[2] - o[2])        # added redness, added warmth
+    added = max(da, db)
+    ok = added <= cfg.color_add_max
+    return _gate("color", "pass" if ok else "fail", added, cfg.color_add_max,
+                 "no added cast" if ok else f"edit added a color cast (da*={da:.1f}, db*={db:.1f})")
 
 
 def _residual_gate(retouched, mask, geom, cfg) -> dict:
@@ -144,7 +154,6 @@ def _lash_gate(original, retouched, protect, cfg) -> dict:
     if protect is None or int(_hard(protect).sum()) < cfg.min_region_px:
         return _gate("lashes", "skipped", None, cfg.lash_min_retention,
                      "no protected features here", required=False)
-    m = _hard(protect)
     e0 = _hf_energy(_gray(original), protect, cfg.min_region_px)
     e1 = _hf_energy(_gray(retouched), protect, cfg.min_region_px)
     if not e0 or e0 <= 1e-9:
@@ -185,7 +194,7 @@ def audit_region(
         gates = [
             _seam_gate(original, retouched, mask, band_px, cfg),
             _texture_gate(retouched, mask, skin=skin, band_px=band_px, cfg=cfg),
-            _color_gate(retouched, mask, skin_ref, cfg),
+            _color_gate(original, retouched, mask, cfg),
             _residual_gate(retouched, mask, geom, cfg),
             _lash_gate(original, retouched, protect, cfg),
         ]

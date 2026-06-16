@@ -5,7 +5,7 @@ backstop and the place to look when something ships wrong. Do not skip a line.
 
 ## Before editing
 
-- [ ] Run locally, not in the Codex sandbox. The sandbox denies the GPU and MediaPipe aborts.
+- [ ] Run locally, not in a sandboxed environment. It denies the GPU and MediaPipe aborts.
 - [ ] Use `.venv312/bin/python` (full deps: mediapipe, opencv-contrib, google-genai).
 - [ ] Confirm the input is a single, frontal, in-scope photo. Multi-person, profile, heavy
       occlusion: the system flags these; do not force them.

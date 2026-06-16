@@ -68,7 +68,7 @@ ship the least-bad.
 
 ## 10. The crash that started it all
 
-MediaPipe aborted in the Codex sandbox because the sandbox denies the GPU (Metal). **Rule:**
+MediaPipe aborted in a sandboxed agent environment because the sandbox denies the GPU (Metal). **Rule:**
 run locally. `faceparse` sets `MEDIAPIPE_DISABLE_GPU` and probes in a subprocess, but the
 real fix is environment, not code.
 

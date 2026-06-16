@@ -120,14 +120,14 @@ def check_cli_tool(label: str, command: str, required: bool) -> Check:
 
 def check_image_gen(value: str, required: bool) -> Check:
     if value == "yes":
-        return Check("image_gen available for retouch map / light regen", "pass", required, "confirmed by Codex tool context")
+        return Check("image_gen available for retouch map / light regen", "pass", required, "confirmed by the calling agent's tool context")
     if value == "no":
         return Check("image_gen available for retouch map / light regen", "fail", required, "not available in current tool context")
     return Check(
         "image_gen available for retouch map / light regen",
         "unknown",
         required,
-        "must be confirmed by Codex; this is not a local CLI capability",
+        "must be confirmed by the calling agent; this is not a local CLI capability",
     )
 
 
@@ -201,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
         "--image-gen-available",
         choices=["yes", "no", "unknown"],
         default="unknown",
-        help="Whether Codex's image_gen tool is available for retouch maps or light regen.",
+        help="Whether the agent's image-gen tool is available for retouch maps or light regen.",
     )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     args = parser.parse_args(argv)

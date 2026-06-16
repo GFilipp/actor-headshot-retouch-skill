@@ -52,7 +52,7 @@ def test_detect_returns_none_when_unavailable(monkeypatch):
     assert fp.detect(make_original()) is None
 
 
-# --- degraded (no-geometry) pipeline path, i.e. the Codex path --------------
+# --- degraded (no-geometry) pipeline path, i.e. the sandboxed path ----------
 
 def test_pipeline_runs_without_face_geometry(tmp_path, monkeypatch, original, target):
     monkeypatch.setattr(fp, "detect", lambda rgb: None)   # force the degraded path

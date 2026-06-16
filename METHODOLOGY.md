@@ -101,6 +101,6 @@ three-quarter angles, heavy occlusion, background, other body skin.
 .venv312/bin/python -m retoucher INPUT --engine v3 --samples 3 --out-dir out
 ```
 
-Run locally, not in the Codex sandbox (the sandbox denies the GPU and MediaPipe aborts).
+Run locally, not in a sandboxed environment (it denies the GPU and MediaPipe aborts).
 See `RULES.md` for the pre-delivery checklist and `references/retouch_learnings.md` for the
 failure log that produced these rules.

@@ -28,8 +28,8 @@ import numpy as np
 from .image_io import to_uint8
 
 # Disable MediaPipe's GPU/Metal path BEFORE it is imported anywhere. In headless
-# / sandboxed macOS (e.g. Codex) the Metal helper (DrishtiMetalHelper) aborts the
-# whole process; forcing CPU avoids it. setdefault lets a user override.
+# / sandboxed macOS (e.g. a restricted agent sandbox) the Metal helper (DrishtiMetalHelper)
+# aborts the whole process; forcing CPU avoids it. setdefault lets a user override.
 os.environ.setdefault("MEDIAPIPE_DISABLE_GPU", "1")
 
 _ASSET = Path(__file__).resolve().parent / "assets" / "face_landmarker.task"
@@ -108,7 +108,7 @@ def _probe() -> bool:
     """Run FaceLandmarker once in an ISOLATED subprocess.
 
     MediaPipe can abort *natively* (not a catchable Python exception) on
-    headless / sandboxed macOS — e.g. inside Codex — during its graphics setup.
+    headless / sandboxed macOS — e.g. a restricted agent sandbox — during graphics setup.
     A native abort in a subprocess is contained and just yields a non-zero exit,
     so this lets us detect "MediaPipe will crash here" and fall back to the
     no-geometry path WITHOUT taking down the main process.

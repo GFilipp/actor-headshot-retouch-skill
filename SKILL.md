@@ -1,6 +1,6 @@
 ---
 name: actor-headshot-retouch
-description: Readiness-gated expert workflow for actor, model, casting, agency, and commercial headshot retouching. Use when Codex is asked to polish, airbrush, rescue, hybrid-map, or light-regenerate portraits or headshots while preserving identity and making material human-visible improvements, including tired eyes, under-eye texture, eye whites, red/brown lid discoloration, neck/hand issues, flyaways, and maximum-quality final outputs that must not look AI-generated.
+description: Readiness-gated expert workflow for actor, model, casting, agency, and commercial headshot retouching. Use when Claude is asked to polish, airbrush, rescue, hybrid-map, or light-regenerate portraits or headshots while preserving identity and making material human-visible improvements, including tired eyes, under-eye texture, eye whites, red/brown lid discoloration, neck/hand issues, flyaways, and maximum-quality final outputs that must not look AI-generated.
 ---
 
 # Actor Headshot Retouch
@@ -34,7 +34,7 @@ python -m retoucher INPUT --engine v3 --dry-run --out-dir out
 python -m retoucher INPUT --engine v3 --samples 3 --out-dir out
 ```
 
-Non-negotiable: audit at native resolution (never an interpolated preview), audit coverage equals map coverage, delivery is audit-gated (refuse rather than ship least-bad), and run locally (the Codex sandbox denies the GPU and MediaPipe aborts). The Mode Decision and Deterministic Transfer sections below are the legacy v2 pipeline (`--engine v2`), kept for backward compatibility.
+Non-negotiable: audit at native resolution (never an interpolated preview), audit coverage equals map coverage, delivery is audit-gated (refuse rather than ship least-bad), and run locally (a sandboxed environment denies the GPU and MediaPipe aborts). The Mode Decision and Deterministic Transfer sections below are the legacy v2 pipeline (`--engine v2`), kept for backward compatibility.
 
 ## Mandatory Readiness Gate
 

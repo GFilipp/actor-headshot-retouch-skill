@@ -127,6 +127,7 @@ def _run_v3(source: Path, out_dir: Path, args) -> int:
     otherwise a telemetry report is written for inspection (never ship least-bad)."""
     from .image_io import load, save_versioned
     from .orchestrator import retouch
+    from .vision import GeminiVisionAssessor
 
     paths = ([source] if source.is_file()
              else sorted(p for p in source.iterdir() if p.suffix.lower() in _IMG_EXTS))
@@ -136,12 +137,15 @@ def _run_v3(source: Path, out_dir: Path, args) -> int:
 
     backend = "mock" if args.dry_run else "gemini"
     generator = get_generator(backend)
+    # A real run uses the VLM assessor so the WHOLE photo is inventoried (hands/neck/chest/
+    # hair), not just the face-derived CV inventory. --dry-run stays fully offline (Mock).
+    assessor = None if args.dry_run else GeminiVisionAssessor()
     jpeg_q = PipelineConfig().jpeg_quality
     reports, rc = [], 0
     for p in paths:
         try:
             img = load(p)
-            res = retouch(img.pixels, generator=generator,
+            res = retouch(img.pixels, generator=generator, assessor=assessor,
                           samples=max(1, args.samples), max_escalate=max(0, args.max_escalate))
         except Exception as exc:
             print(f"{p.name}: ERROR {exc}", file=sys.stderr)
