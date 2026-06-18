@@ -91,6 +91,19 @@ In: face and eye-area, hands and fingers, neck and chest, stray/flyaway hair.
 Out (flagged in the report, handled gracefully, never crashed): multi-person, profile and
 three-quarter angles, heavy occlusion, background, other body skin.
 
+## Known limitations
+
+- **Hand / body-skin discoloration: reduce, not erase.** A strong discoloration on a hand,
+  next to the nail and the silhouette, cannot be fully erased without artifacts — generated
+  pixels flatten the skin texture and rewrite the nail, and pasting across the silhouette
+  halos. The tool ships an artifact-free reduction (frequency split: generated tone + original
+  texture); erasing to zero is out of scope and reads as fake. See
+  `references/retouch_learnings.md` §11.
+- **Defect location on hands is unreliable.** Detectors grab sweater fabric and hair, and a
+  chroma threshold grabs the whole warm hand. Point at the spot (the blemish workflow) rather
+  than relying on auto-detection. The face / eye-area locates reliably via landmarks; the hand
+  does not.
+
 ## Running it
 
 ```bash

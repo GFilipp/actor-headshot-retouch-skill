@@ -72,6 +72,32 @@ MediaPipe aborted in a sandboxed agent environment because the sandbox denies th
 run locally. `faceparse` sets `MEDIAPIPE_DISABLE_GPU` and probes in a subprocess, but the
 real fix is environment, not code.
 
+## 11. Hand / skin discoloration is a tool limitation (the photo-3 thumb)
+
+Removing a strong skin discoloration on a hand, next to the nail and the silhouette, is the
+case the tool cannot do cleanly. The findings, paid for in many failed iterations:
+
+- **Full erasure needs generated pixels, and generated pixels flatten real structure.**
+  Pasting a Gemini donor over the knuckle erased the brown but flattened the creases and
+  rewrote the fingernail (waxy/fake) — the exact thing this whole method exists to avoid.
+- **Never paste across a high-contrast silhouette edge.** The donor never aligns perfectly
+  there, so it leaves a translucent halo against the background. Keep masks eroded clear of
+  any silhouette.
+- **Never paste over non-skin structures** (the nail). It bleaches/rewrites them. Exclude them.
+- **No artifact-free method fully erases it.** Chroma-only neutralization keeps texture but
+  leaves a gray luminance mottle; transfer (low-freq) is too gentle; the least-bad is a
+  frequency split (generated low-freq tone + the original's high-freq texture), which REDUCES
+  the discoloration without artifacts but does not erase it.
+- **Locating the discoloration is the weak link.** `detect_blemishes` fired on sweater
+  knit-holes and arm hair; a chroma threshold grabbed the whole warm hand; local-contrast
+  caught real spots but also sweater noise. The reliable locator is the USER POINTING at the
+  spot (the original blemish workflow), not auto-detection.
+
+**Decision (Gary, 2026-06):** ship a natural REDUCTION of hand / body-skin discoloration, not
+an erasure — chasing zero is what produces the fake look. The face / eye-area surgical paste
+is the high-value win and works well; the hand is best-effort. Photo 3's thumb was accepted at
+"reduced, artifact-free." This is a documented limitation, not a bug to keep grinding.
+
 ## Operating constraints (do not relearn these either)
 
 - Never commit Gary's real photos. `inputs/` is gitignored; delivered files live in Google

@@ -113,7 +113,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="v3: bounded audit-driven re-calibration rounds on failing regions.")
     p.add_argument("--no-write", action="store_true", help="Run without writing outputs.")
     p.add_argument("--skip-preflight", action="store_true", help="Skip the readiness check.")
-    p.add_argument("--force", action="store_true", help="Run even if preflight fails.")
+    p.add_argument("--force", action="store_true",
+                   help="v2: run even if preflight fails. v3: also write the result image even "
+                        "when the audit flags it (for inspection), labelled as flagged.")
     p.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     return p
 
@@ -166,8 +168,11 @@ def _run_v3(source: Path, out_dir: Path, args) -> int:
             out_dir.mkdir(parents=True, exist_ok=True)
             rep = out_dir / f"{p.stem}.report.json"
             rep.write_text(json.dumps(res.report, indent=2))
-            if res.delivered:
-                outp = save_versioned(res.image, out_dir, p.stem, suffix="v3",
+            # Write the image when delivered, or when --force (labelled flagged) so a human
+            # can judge it directly. Audit-gated by default: a flagged image is NOT shipped.
+            if res.delivered or args.force:
+                suffix = "v3" if res.delivered else "v3-flagged"
+                outp = save_versioned(res.image, out_dir, p.stem, suffix=suffix,
                                       icc=img.icc, exif=img.exif, quality=jpeg_q)
                 if not args.json:
                     print(f"    output: {outp}")
