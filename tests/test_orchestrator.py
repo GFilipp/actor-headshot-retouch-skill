@@ -7,7 +7,7 @@ import json
 import numpy as np
 
 from retoucher.generate import MockGenerator
-from retoucher.orchestrator import RetouchResult, retouch
+from retoucher.orchestrator import RetouchOutcome, retouch
 
 from _synth import fake_geometry, make_original
 
@@ -23,7 +23,7 @@ class _StubAssessor:
 def test_dry_run_offline_full_spine_and_telemetry():
     rgb = make_original()
     res = retouch(rgb, generator=MockGenerator(), geom=fake_geometry(), samples=2, max_escalate=1)
-    assert isinstance(res, RetouchResult)
+    assert isinstance(res, RetouchOutcome)
     assert res.image.shape == rgb.shape                       # same canvas, no resize
     assert len(res.verdicts) == len(res.retouch_map.ops) > 0  # coverage == map
     for k in ("assessment", "map", "calibrations", "selected_sample", "sample_scores",

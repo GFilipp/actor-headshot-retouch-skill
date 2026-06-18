@@ -113,7 +113,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="v3: bounded audit-driven re-calibration rounds on failing regions.")
     p.add_argument("--no-write", action="store_true", help="Run without writing outputs.")
     p.add_argument("--skip-preflight", action="store_true", help="Skip the readiness check.")
-    p.add_argument("--force", action="store_true", help="Run even if preflight fails.")
+    p.add_argument("--force", action="store_true",
+                   help="v2: run even if preflight fails. v3: also write the result image even "
+                        "when the audit flags it (for inspection), labelled as flagged.")
     p.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     return p
 
@@ -127,6 +129,7 @@ def _run_v3(source: Path, out_dir: Path, args) -> int:
     otherwise a telemetry report is written for inspection (never ship least-bad)."""
     from .image_io import load, save_versioned
     from .orchestrator import retouch
+    from .vision import GeminiVisionAssessor
 
     paths = ([source] if source.is_file()
              else sorted(p for p in source.iterdir() if p.suffix.lower() in _IMG_EXTS))
@@ -136,12 +139,15 @@ def _run_v3(source: Path, out_dir: Path, args) -> int:
 
     backend = "mock" if args.dry_run else "gemini"
     generator = get_generator(backend)
+    # A real run uses the VLM assessor so the WHOLE photo is inventoried (hands/neck/chest/
+    # hair), not just the face-derived CV inventory. --dry-run stays fully offline (Mock).
+    assessor = None if args.dry_run else GeminiVisionAssessor()
     jpeg_q = PipelineConfig().jpeg_quality
     reports, rc = [], 0
     for p in paths:
         try:
             img = load(p)
-            res = retouch(img.pixels, generator=generator,
+            res = retouch(img.pixels, generator=generator, assessor=assessor,
                           samples=max(1, args.samples), max_escalate=max(0, args.max_escalate))
         except Exception as exc:
             print(f"{p.name}: ERROR {exc}", file=sys.stderr)
@@ -162,8 +168,11 @@ def _run_v3(source: Path, out_dir: Path, args) -> int:
             out_dir.mkdir(parents=True, exist_ok=True)
             rep = out_dir / f"{p.stem}.report.json"
             rep.write_text(json.dumps(res.report, indent=2))
-            if res.delivered:
-                outp = save_versioned(res.image, out_dir, p.stem, suffix="v3",
+            # Write the image when delivered, or when --force (labelled flagged) so a human
+            # can judge it directly. Audit-gated by default: a flagged image is NOT shipped.
+            if res.delivered or args.force:
+                suffix = "v3" if res.delivered else "v3-flagged"
+                outp = save_versioned(res.image, out_dir, p.stem, suffix=suffix,
                                       icc=img.icc, exif=img.exif, quality=jpeg_q)
                 if not args.json:
                     print(f"    output: {outp}")

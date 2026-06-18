@@ -4,7 +4,7 @@ For bodyshots / wide frames the face is small, so a whole-frame generation barel
 touches it (and pasting the tiny donor back upscales it → blur). Crop the face out
 at full resolution, retouch THAT, then register it back (see ``regions``).
 
-Promoted from scripts/face_crop.py.
+Promoted from the legacy scripts/ surgical toolkit.
 """
 from __future__ import annotations
 

@@ -14,7 +14,7 @@ Two hard rules learned the hard way and enforced here:
 - features (brows/eyes/lips/lashes) are re-protected AFTER feathering, so the feather
   can't bleed an edit onto them.
 
-Promoted from scripts/surgical_paste.py.
+Promoted from the legacy scripts/ surgical toolkit.
 """
 from __future__ import annotations
 

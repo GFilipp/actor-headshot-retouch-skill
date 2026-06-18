@@ -12,7 +12,7 @@ Fully offline with MockAssessor + MockGenerator (the --dry-run path); no network
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import cv2
 import numpy as np
@@ -28,14 +28,16 @@ from .calibrate import calibrate, escalate
 from .config import AuditThresholds, CalibrationConfig, PipelineConfig
 from .detect import detect_blemishes
 from .generate import edit_n
-from .mask import _dilate, _erode, _feather
+from .image_io import resize_to_megapixels
+from .mask import _dilate, _erode
 from .prompts import build_edit_prompt
 from .regions import build_region, composite_region, register_donor
 from .schema import CalibrationRecord, PhotoAssessment, RegionVerdict, RetouchMap
 
 
 @dataclass
-class RetouchResult:
+class RetouchOutcome:
+    """Result of a v3 run. Named distinctly from the legacy ``pipeline.RetouchResult``."""
     image: np.ndarray
     assessment: PhotoAssessment
     retouch_map: RetouchMap
@@ -67,15 +69,26 @@ def _region_mask(record, op, geom, shape_hw) -> np.ndarray:
     return _disc_from_bbox(op.bbox, shape_hw, grow=record.grow)   # disc / ecc_patch
 
 
-def _clean_skin_ref(geom, region, shape_hw) -> np.ndarray:
-    """Per-region clean-skin reference for de-discoloration: clean face skin when we have
-    geometry, else the adjacent (unedited) annulus around the region."""
-    if geom is not None:
+def _clean_skin_ref(geom, region, shape_hw, *, is_face: bool = True) -> np.ndarray:
+    """Per-region clean-skin reference for de-discoloration. A FACE region pulls toward clean
+    face skin; a hand/neck/chest region pulls toward its OWN adjacent skin (the annulus), not
+    the cheek (a hand de-discolored toward cheek color would shift wrong)."""
+    if is_face and geom is not None:
         ref = geom.face_oval * (1.0 - np.clip(geom.protect + geom.under_eye + geom.eyes, 0, 1))
         ref = _erode(ref, 6.0)
         if float(ref.sum()) > 200:
             return ref
     return _dilate(region, 18.0) * (1.0 - _dilate(region, 6.0))
+
+
+def _lowres_safe(rec):
+    """When the donor is much lower-res than the working image, a paste/luma carries the
+    donor's upscaling stipple into the region. Transfer (low-frequency tone only) keeps the
+    original texture, so downgrade to it. Texture-fixing power is traded for no stipple."""
+    if rec.composite_mode in ("paste", "luma"):
+        return replace(rec, composite_mode="transfer",
+                       rationale=rec.rationale + " | low-res donor: paste/luma -> transfer (keep texture)")
+    return rec
 
 
 # ---- per-region execution ----------------------------------------------------------
@@ -128,10 +141,16 @@ def retouch(
     rgb: np.ndarray, *, generator=None, assessor=None, geom=None,
     calib_cfg: CalibrationConfig | None = None, audit_cfg: AuditThresholds | None = None,
     pipe_cfg: PipelineConfig | None = None, samples: int = 1, max_escalate: int = 1,
-) -> RetouchResult:
+) -> RetouchOutcome:
     pipe_cfg = pipe_cfg or PipelineConfig()
     rgb = rgb.astype(np.float32)
     if geom is None:
+        # Cap the working/audit resolution once, BEFORE any edit (mirrors the v2 pipeline).
+        # The native-res audit invariant is about not verifying the RESULT on an interpolated
+        # zoom; this single pre-edit downscale sets the working "native" — the audit still
+        # compares result vs original at identical working shape. 8 MP is casting-grade.
+        if pipe_cfg.max_process_mp:
+            rgb, _ = resize_to_megapixels(rgb, pipe_cfg.max_process_mp)
         geom = faceparse.detect(rgb)
 
     assessment, rmap, geom = analyze(rgb, assessor, geom=geom)
@@ -143,33 +162,40 @@ def retouch(
         identity = {"name": "identity", "status": "skipped", "value": None,
                     "threshold": None, "detail": "not handleable", "required": True}
         report["identity"] = identity
-        return RetouchResult(rgb, assessment, rmap, [], [], identity, False, report)
+        return RetouchOutcome(rgb, assessment, rmap, [], [], identity, False, report)
 
     calibs = calibrate(assessment, rmap, calib_cfg)
     report["calibrations"] = [c.to_dict() for c in calibs]
     protect = geom.protect if geom is not None else None
+
+    # Generative donors first: regenerate the whole photo once, K samples (audit-driven sampling).
+    need_gen = any(r.gen_weight > 0 for r in calibs)
+    raw_donors = [None]
+    if need_gen and generator is not None:
+        prompt = build_edit_prompt(assessment, rmap)
+        report["prompt"] = prompt
+        raw_donors = edit_n(generator, rgb, prompt, n=max(1, samples))
+    # A donor much lower-res than the working image injects upscaling stipple wherever it is
+    # pasted/luma'd. Keep the original texture instead: downgrade those modes to transfer.
+    work_long = max(rgb.shape[:2])
+    lowres_donor = any(d is not None and max(d.shape[:2]) < 0.6 * work_long for d in raw_donors)
+    report["donor_lowres"] = lowres_donor
+    if lowres_donor:
+        calibs = [_lowres_safe(c) for c in calibs]
+    donors = [register_donor(rgb, d)[0] if d is not None else None for d in raw_donors]
+    report["samples"] = len(donors)
 
     # Build region masks / references once (they don't depend on the donor).
     specs = []
     region_audit = []
     for op, rec in zip(rmap.ops, calibs):
         region = _region_mask(rec, op, geom, rgb.shape[:2])
-        skin_ref = _clean_skin_ref(geom, region, rgb.shape[:2])
+        skin_ref = _clean_skin_ref(geom, region, rgb.shape[:2], is_face=op.region in ("face", "eye_area"))
         kind = "eyes" if rec.mask_kind == "eyes" else "skin"
         specs.append((op, rec, region, skin_ref, protect))
         region_audit.append({"op_id": op.op_id, "mask": region, "skin_ref": skin_ref,
                              "protect": protect, "kind": kind,
                              "band_px": max(4.0, rec.feather_px * 0.5)})
-
-    # Generative donors: regenerate the whole photo once, K samples (audit-driven sampling).
-    need_gen = any(r.gen_weight > 0 for _, r, _, _, _ in specs)
-    donors = [None]
-    if need_gen and generator is not None:
-        prompt = build_edit_prompt(assessment, rmap)
-        report["prompt"] = prompt
-        donors = edit_n(generator, rgb, prompt, n=max(1, samples))
-        donors = [register_donor(rgb, d)[0] if d is not None else None for d in donors]
-    report["samples"] = len(donors)
 
     # Pick the cleanest candidate at native resolution.
     scored = []
@@ -210,4 +236,4 @@ def retouch(
         "identity": identity,
         "delivered": delivered,
     })
-    return RetouchResult(result, assessment, rmap, cur, verdicts, identity, delivered, report)
+    return RetouchOutcome(result, assessment, rmap, cur, verdicts, identity, delivered, report)

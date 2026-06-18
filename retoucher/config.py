@@ -65,10 +65,15 @@ class AuditThresholds:
     exact artifacts this project shipped by mistake when verifying on interpolated zoom:
     boxes/seams, blur/plastic, stipple, color cast (rouge), missed pigment, faded lashes."""
 
-    seam_max: float = 0.06               # 95th-pct gradient of the edit delta in the mask edge band
+    seam_max: float = 0.04               # absolute floor: edge-band gradient below this = no seam
+    seam_ratio_max: float = 2.5          # seam = boundary gradient concentrated vs the edit interior
+                                         # (a ratio is robust to real skin texture; an absolute
+                                         # threshold over-flagged real photos)
     texture_lo: float = 0.45             # region/annulus HF ratio floor -> below = blur/plastic
     texture_hi: float = 2.2              # region/annulus HF ratio ceiling -> above = stipple
-    color_max_delta_e: float = 8.0       # region-mean vs clean-skin-ref-mean LAB drift (rouge)
+    color_add_max: float = 3.0           # the edit must not ADD red (a*) or warmth (b*) beyond this
+                                         # (LAB units). Drift-from-original, directional: allows
+                                         # intended de-discoloration, flags rouge; no cheek-match.
     residual_form_thresh: float = 0.08   # detect_blemishes score floor to form tight candidate blobs
     residual_severity: float = 0.9       # a formed pigment/dark candidate this strong = missed mark
                                          # (severity = score-mean; clean skin peaks well below this)

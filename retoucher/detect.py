@@ -3,7 +3,7 @@
 Finds local redness (LAB a*) and dark-spot anomalies on skin, excluding protected
 features, the under-eye, and hair/shadow/blown highlights. Returns structured
 ``Candidate`` records (not a marked PNG) so they can feed the retouch map AND the
-"missed mark" self-audit. Promoted from scripts/detect_blemishes.py.
+"missed mark" self-audit. Promoted from the legacy scripts/ toolkit.
 """
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ import numpy as np
 from skimage.color import rgb2lab
 
 from .faceparse import FaceGeometry
-from .image_io import to_uint8
 from .mask import skin_mask
 
 

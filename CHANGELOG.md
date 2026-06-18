@@ -3,6 +3,37 @@
 Versions follow the GitHub releases. The package version (`pyproject.toml`) is
 the single source of truth.
 
+## v3.0.1
+
+Hardening + cleanup after running v3 on a real photo (it over-flagged because the audit
+was synthetic-tuned) and a full loose-ends sweep.
+
+Real-photo audit calibration:
+- Color gate now measures the color the EDIT introduced (don't add red a* / warmth b* vs the
+  original region), not an absolute match to a clean cheek. The cheek-match version flagged
+  every naturally-different region (hand, neck, under-eye) and intended de-discoloration.
+- Seam gate uses a boundary-vs-interior gradient RATIO (robust to real skin texture); an
+  absolute threshold over-flagged real photos.
+- Per-region de-discoloration reference: a hand/neck/chest pulls toward its OWN adjacent skin,
+  not the face cheek.
+- Low-res donor guard: a Gemini donor much lower-res than the working image is texture-unsafe
+  to paste/luma (injects upscaling stipple), so those modes downgrade to transfer.
+- 8 MP working-resolution cap (mirrors v2) so a 20 MP file no longer grinds for ~15 min; the
+  native-res audit invariant is preserved (single pre-edit downscale, audit at working native).
+- CLI real run wires the Gemini vision assessor, so the whole photo is inventoried
+  (hands/neck/chest/hair), not just the face-derived CV inventory.
+
+Claude-only + loose ends:
+- Removed forward-facing Codex references (SKILL/README/METHODOLOGY/RULES/learnings + code
+  comments); the GPU-sandbox notes are now environment-general. CHANGELOG history is retained.
+- `__init__` now exposes the v3 system (`retouch`, `analyze`, `calibrate`, audit, schema,
+  `GeminiGenerator`, configs); it previously exported only the v2 API.
+- Renamed the v3 result `orchestrator.RetouchResult` -> `RetouchOutcome` to resolve the name
+  collision with the legacy `pipeline.RetouchResult`.
+- Removed a dead config field, dead imports/locals; retired the 7 superseded (and partly
+  broken) legacy `scripts/` one-offs — the tested package modules are the maintained versions.
+  `scripts/check_readiness.py` stays (the v2 CLI preflight uses it).
+
 ## v3.0.0
 
 The north-star rebuild: a dynamic, holistic, hybrid, model-agnostic retouch system that

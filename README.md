@@ -26,7 +26,7 @@ retoucher INPUT --engine v3 --dry-run --out-dir out
 retoucher INPUT --engine v3 --samples 3 --out-dir out
 ```
 
-v3 writes a per-image telemetry report and the output image only when delivered (audit-gated; it will not ship the least-bad). Run locally, not in the Codex sandbox (the sandbox denies the GPU and MediaPipe aborts).
+v3 writes a per-image telemetry report and the output image only when delivered (audit-gated; it will not ship the least-bad). Run locally, not in a sandboxed environment (it denies the GPU and MediaPipe aborts).
 
 ---
 
@@ -141,14 +141,14 @@ It falls back to a known model only if the models API is unreachable. The genera
 - Alignment can fail when the generated target differs a lot in pose or expression. The pipeline falls back (ECC, then ORB), flags low confidence, and the identity gate catches drift.
 - The generator must keep the same crop and framing for a clean transfer. The prompts ask for this; a model that recrops will produce weaker results.
 - The quality path needs Python 3.12 + MediaPipe (bundled model) for feature protection and the under-eye corrector. Without a face parser the tool degrades to a skin + edge-gated fallback and flags `face_geometry: false` in the report.
-- Headless / sandboxed environments (e.g. Codex) where MediaPipe aborts during graphics setup are detected automatically (an isolated subprocess probe) and fall back to that path instead of crashing. Force it with `RETOUCH_FACE_PARSER=off`, or `=on` to skip the probe where you know MediaPipe works.
+- Headless / sandboxed environments where MediaPipe aborts during graphics setup are detected automatically (an isolated subprocess probe) and fall back to that path instead of crashing. Force it with `RETOUCH_FACE_PARSER=off`, or `=on` to skip the probe where you know MediaPipe works.
 - Processing and output are capped at `max_process_mp` (default 8 MP, `--max-process-mp` to change) so very large originals can't hang the full-image stages; bigger files are downsampled to the cap.
 - Real before/after quality depends on the source photo and the generator. Heals are confined to the face and the area just below it (neck / open-collar chest); for a blemish further down, point at it with `--mark`.
 - Privacy: a real run uploads your image to the generator's API (OpenAI by default); review their data policy first. Offline `--dry-run` and the test suite never leave your machine.
 
 ## Repository layout
 
-This is both a runnable Python package and a Codex/agent skill.
+This is both a runnable Python package and a Claude Code / agent skill.
 
 ```
 actor-headshot-retouch-skill/   (clone this; the repo itself is the skill)
@@ -162,7 +162,7 @@ actor-headshot-retouch-skill/   (clone this; the repo itself is the skill)
 └── CHANGELOG.md
 ```
 
-To use it as a Codex skill, clone or copy this repository into your skills directory so `SKILL.md` sits at the skill's root, then invoke it; the skill runs the same pipeline described here.
+To use it as a Claude Code skill, clone or copy this repository into your skills directory so `SKILL.md` sits at the skill's root, then invoke it; the skill runs the same pipeline described here.
 
 ## Develop
 

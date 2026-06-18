@@ -5,7 +5,7 @@ CLEAN reference skin, reaching the rim), and softens residual fine lines. Uses a
 organic rounded eye-area mask and re-protects features so nothing fades the lashes.
 Keep it tasteful — the generative paste does the heavy lifting.
 
-Promoted from scripts/polish_eyes.py.
+Promoted from the legacy scripts/ surgical toolkit.
 """
 from __future__ import annotations
 
